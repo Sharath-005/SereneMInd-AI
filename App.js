@@ -11,13 +11,13 @@ const supportiveContent = {
 
 // --- Main Application Component ---
 function App() {
-    const [messages, setMessages] = useState([
-        { text: "Hello! I'm SereneMind AI, your personal mental wellness companion. Feel free to share what's on your mind. How are you doing today? ☀️", sender: 'bot' }
-    ]);
+    const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [moodHistory, setMoodHistory] = useState([]);
     const [showMoodTracker, setShowMoodTracker] = useState(false);
+    const [userName, setUserName] = useState('');
+    const [showSettings, setShowSettings] = useState(false);
     const chatEndRef = useRef(null);
 
     // API configurations
@@ -25,8 +25,45 @@ function App() {
     const EMOTION_MODEL_URL = "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base";
     
     // IMPORTANT: Replace this with your own key for the saved version to work!
-    const GEMINI_API_KEY = "AIzaSyAx-8Badbvv4yQlXJbqaXct-BclO4OD3lA"; 
+    const GEMINI_API_KEY = ""; 
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+
+    // Effect to load data from localStorage on initial render
+    useEffect(() => {
+        const savedName = localStorage.getItem('sereneMindUserName');
+        const savedMessages = localStorage.getItem('sereneMindChatHistory');
+        const savedMoods = localStorage.getItem('sereneMindMoodHistory');
+
+        if (savedName) {
+            setUserName(savedName);
+        }
+
+        if (savedMessages) {
+            setMessages(JSON.parse(savedMessages));
+        } else {
+             setMessages([{ 
+                text: `Hello${savedName ? ', ' + savedName : ''}! I'm SereneMind AI, your personal mental wellness companion. How are you doing today? ☀️`, 
+                sender: 'bot' 
+            }]);
+        }
+        
+        if (savedMoods) {
+            // Convert string timestamps back to Date objects
+            const parsedMoods = JSON.parse(savedMoods).map(mood => ({...mood, timestamp: new Date(mood.timestamp)}));
+            setMoodHistory(parsedMoods);
+        }
+    }, []);
+
+    // Effect to save data to localStorage whenever it changes
+    useEffect(() => {
+        if (messages.length > 0) {
+            localStorage.setItem('sereneMindChatHistory', JSON.stringify(messages));
+        }
+        if (moodHistory.length > 0) {
+            localStorage.setItem('sereneMindMoodHistory', JSON.stringify(moodHistory));
+        }
+    }, [messages, moodHistory]);
+
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,7 +76,7 @@ function App() {
     };
 
     const handleSend = async () => {
-        if (input.trim() === '') return;
+        if (input.trim() === '' || !GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") return;
 
         const userMessageText = input;
         const newMessages = [...messages, { text: userMessageText, sender: 'user' }];
@@ -90,12 +127,12 @@ function App() {
 
     const generateConversationalResponse = async (chatHistory, emotion) => {
         const lastMessages = chatHistory.slice(-5);
-        const conversationContext = lastMessages.map(msg => `${msg.sender}: ${msg.text}`).join('\n');
+        const conversationContext = lastMessages.map(msg => `${msg.sender === 'user' ? (userName || 'User') : 'AI'}: ${msg.text}`).join('\n');
         const userInput = lastMessages[lastMessages.length - 1].text;
         const emotionKey = supportiveContent[emotion] ? emotion : 'default';
         const knowledgeBase = supportiveContent[emotionKey].tips.join(' ');
 
-        const prompt = `You are SereneMind AI, a friendly, empathetic, and intelligent mental health chatbot. Your goal is to provide supportive, non-judgmental conversations. Here is the recent conversation history:\n${conversationContext}\n\nThe user's latest message is: "${userInput}". Their primary emotion seems to be '${emotion}'.\n\nBased on the conversation history and the user's last message, provide a supportive, caring, and directly relevant response. Acknowledge what the user said. Do NOT repeat previous answers. You can reference these self-care ideas if they are relevant: "${knowledgeBase}".\n\nImportant Rules:\n- Do NOT give clinical diagnoses or act as a therapist.\n- Keep your response concise, empathetic, and helpful.\n- Use emojis to make the tone more friendly.`;
+        const prompt = `You are SereneMind AI, a friendly, empathetic, and intelligent mental health chatbot. The user's name is ${userName || 'not set'}. Here is the recent conversation history:\n${conversationContext}\n\nThe user's latest message is: "${userInput}". Their primary emotion seems to be '${emotion}'.\n\nBased on the conversation history and the user's last message, provide a supportive, caring, and directly relevant response. If you know the user's name, use it to make the conversation more personal. Acknowledge what the user said. Do NOT repeat previous answers. You can reference these self-care ideas if they are relevant: "${knowledgeBase}".\n\nImportant Rules:\n- Do NOT give clinical diagnoses or act as a therapist.\n- Keep your response concise, empathetic, and helpful.\n- Use emojis to make the tone more friendly.`;
 
         const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
@@ -124,21 +161,37 @@ function App() {
             setIsTyping(false);
         }
     };
+
+    const handleSaveSettings = (newName) => {
+        setUserName(newName);
+        localStorage.setItem('sereneMindUserName', newName);
+        setShowSettings(false);
+    };
     
     return (
         <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-100">
+            {showSettings && <SettingsModal onSave={handleSaveSettings} onClose={() => setShowSettings(false)} currentName={userName} />}
             <header className="bg-white/80 backdrop-blur-sm shadow-sm p-4 flex justify-between items-center z-10 border-b border-gray-200">
                 <div className="flex items-center">
                     <svg className="w-8 h-8 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <h1 className="text-xl font-bold text-gray-800">SereneMind AI</h1>
                 </div>
-                <button 
-                    onClick={() => setShowMoodTracker(!showMoodTracker)}
-                    className="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center"
-                >
-                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                    {showMoodTracker ? 'Close Tracker' : 'Mood Tracker'}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setShowSettings(true)}
+                        className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold p-2 rounded-full transition-all duration-300 transform hover:scale-105 shadow-sm"
+                        title="Settings"
+                    >
+                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </button>
+                    <button 
+                        onClick={() => setShowMoodTracker(!showMoodTracker)}
+                        className="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center"
+                    >
+                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        {showMoodTracker ? 'Close Tracker' : 'Mood Tracker'}
+                    </button>
+                </div>
             </header>
 
             <main className="flex-1 flex overflow-hidden">
@@ -159,11 +212,11 @@ function App() {
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                                    placeholder="Type your message here..."
+                                    placeholder={GEMINI_API_KEY !== "YOUR_GEMINI_API_KEY_HERE" ? "Type your message here..." : "Please add your API key in the code"}
                                     className="w-full p-3 pl-5 bg-transparent rounded-full focus:outline-none text-gray-700"
-                                    disabled={isTyping}
+                                    disabled={isTyping || !GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE"}
                                 />
-                                <button onClick={handleSend} disabled={isTyping || !input.trim()} className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 m-1 rounded-full transition-all duration-300 transform hover:scale-110 disabled:bg-indigo-300 disabled:scale-100">
+                                <button onClick={handleSend} disabled={isTyping || !input.trim() || !GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE"} className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 m-1 rounded-full transition-all duration-300 transform hover:scale-110 disabled:bg-indigo-300 disabled:scale-100">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                                 </button>
                             </div>
@@ -183,6 +236,43 @@ function App() {
         </div>
     );
 }
+
+const SettingsModal = ({ onSave, onClose, currentName }) => {
+    const [name, setName] = useState(currentName);
+
+    const handleSave = () => {
+        onSave(name);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm transform transition-all">
+                <h2 className="text-2xl font-bold text-gray-800 mb-6">Settings</h2>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="name" className="text-sm font-medium text-gray-600 block mb-2">Your Name</label>
+                        <input
+                            id="name"
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="How should I call you?"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                        />
+                    </div>
+                </div>
+                <div className="mt-8 flex justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+                        Cancel
+                    </button>
+                    <button onClick={handleSave} className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const Message = ({ msg }) => {
     const isUser = msg.sender === 'user';
