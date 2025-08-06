@@ -1,7 +1,14 @@
 SereneMind 🧠✨ - Your Offline Empathetic Wellness Companion
 A friendly and empathetic mental health chatbot designed to provide a safe, private, and supportive space for users. This app runs 100% offline in your browser, ensuring your conversations are always private.
 
-🚀 Live Demo: serenemood.netlify.app
+
+
+<img width="1914" height="874" alt="image" src="https://github.com/user-attachments/assets/ccdcdfa5-7218-4f8b-becf-dff8fe019383" />
+
+🚀 Live Demo: https://serenemood.netlify.app/
+
+
+
 ✨ Key Features
 💻 100% Offline: Works anywhere, anytime, with no internet connection required.
 
